@@ -25,8 +25,11 @@ namespace TIANYUUNITY
 #region Public Variables
 
         public string GIDataname;
+        public string sHSettingsName;
         public TextAsset bakedGIData;
+        public SHWeightSettings sHWeightSettings;
         public float bakedGIWeight;
+        public float[] bakedProbeWeight;
         public string curSceneName;
         public string headerTile = "LIGHT PROBES WEIGHT TOOL Ver.1.0";
 
@@ -43,10 +46,16 @@ namespace TIANYUUNITY
         GUIStyle buttonAStyle = new GUIStyle ();
         GUIStyle buttonBStyle = new GUIStyle ();
         GUIStyle buttonCStyle = new GUIStyle ();
+        GUIStyle buttonDStyle = new GUIStyle ();
+        GUIStyle buttonEStyle = new GUIStyle ();
 
         GUIStyle sliderTroughStyle = new GUIStyle ();
         GUIStyle sliderKnobStyle = new GUIStyle ();
         GUIStyle sectionStyle = new GUIStyle ();
+
+        const float BAKED_PROBE_WEIGHT_ENTRY_HEIGHT = 25.0f;
+        public int bakedProbeViewIdx;
+        Vector2 bakedProbeWeightScrollPos;
 
 #endregion
 
@@ -65,6 +74,69 @@ namespace TIANYUUNITY
         {
             curSceneName = Application.loadedLevelName;
             GenerateStyles ();
+
+            // Initialize baked probe weight data
+            {
+                bakedProbeWeight = new float[LightmapSettings.lightProbes.count];
+                for (int i = 0; i < bakedProbeWeight.Length; ++i)
+                {
+                    bakedProbeWeight[i] = 1.0f;
+                }
+                bakedProbeViewIdx = -1;
+                bakedProbeWeightScrollPos = new Vector2(0.0f, 0.0f);
+                SceneView.RepaintAll();
+            }
+
+            SceneView.onSceneGUIDelegate += OnSceneGUI;
+        }
+
+        void OnDestroy()
+        {
+            SceneView.onSceneGUIDelegate -= OnSceneGUI;
+        }
+
+        void OnSceneGUI(SceneView sceneView)
+        {
+            if (bakedProbeWeight != null)
+            {
+                int[] ids = new int[bakedProbeWeight.Length];
+                for (int i = 0; i < ids.Length; ++i)
+                {
+                    ids[i] = GUIUtility.GetControlID(FocusType.Passive);
+                }
+
+                if (Event.current.type == EventType.Repaint || Event.current.type == EventType.layout)
+                {
+                    for (int i = 0; i < bakedProbeWeight.Length; ++i)
+                    {
+                        Vector3 lightProbeToViewPos = LightmapSettings.lightProbes.positions[i];
+                        Color lightProbeToViewCol = Color.yellow * bakedProbeWeight[i]/2.0f + Color.red * (2 - bakedProbeWeight[i])/2.0f;
+                        lightProbeToViewCol.a = bakedProbeViewIdx == i ? 0.7f : 0.3f;
+
+                        Handles.color = lightProbeToViewCol;
+                        Handles.SphereHandleCap(ids[i], lightProbeToViewPos, Quaternion.identity, 0.15f, Event.current.type);                     
+                    }
+                }
+                else if (Event.current.type == EventType.mouseDown && Event.current.button == 0)
+                {
+                    for (int i = 0; i < bakedProbeWeight.Length; ++i)
+                    {
+                        if (HandleUtility.nearestControl == ids[i])
+                        {
+                            if (bakedProbeViewIdx != i)
+                            {
+                                bakedProbeViewIdx = i;
+                                bakedProbeWeightScrollPos.y = BAKED_PROBE_WEIGHT_ENTRY_HEIGHT * bakedProbeViewIdx;
+                                SceneView.RepaintAll();
+                            }
+
+                            Vector3 lightProbeToViewPos = LightmapSettings.lightProbes.positions[bakedProbeViewIdx];
+                            SceneView.lastActiveSceneView.LookAt(lightProbeToViewPos);
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
         //List<Texture2D> textures = new List<Texture2D>();
@@ -82,7 +154,7 @@ namespace TIANYUUNITY
 
             EditorGUILayout.BeginHorizontal ();
             GUILayout.Space (10.0f);
-            EditorGUILayout.LabelField ("Save SH data:", titleAStyle, GUILayout.Width (100));
+            EditorGUILayout.LabelField ("SAVE SH DATA:", titleAStyle, GUILayout.Width (100));
 
             GIDataname = EditorGUILayout.TextField (curSceneName + "_LP", GUILayout.Width (163), GUILayout.Height (25));
 
@@ -95,13 +167,28 @@ namespace TIANYUUNITY
                 }
                 else
                 {
-                    saveProbeDataXml (getSavePath (GIDataname));
+                    saveProbeDataXml (getSavePath (GIDataname, "xml"));
                     AssetDatabase.Refresh ();
+
+                    // Initialize baked probe weight data
+                    {
+                        Array.Resize(ref bakedProbeWeight, LightmapSettings.lightProbes.count);
+                        bakedProbeViewIdx = -1;
+                        bakedProbeWeightScrollPos = new Vector2(0.0f, 0.0f);
+                        SceneView.RepaintAll();
+                    }
                 }
             }
 
 
             EditorGUILayout.EndHorizontal ();
+
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Space(10.0f);
+            EditorGUILayout.LabelField("STORED SH DATA:", titleAStyle, GUILayout.Width(100));
+            bakedGIData = EditorGUILayout.ObjectField(bakedGIData, typeof(TextAsset), false, GUILayout.Width(163)) as TextAsset;
+            EditorGUILayout.EndHorizontal ();
+
             if (GUILayout.Button ("RESTORE ORIGINAL SH", buttonAStyle, GUILayout.Width (379), GUILayout.Height (48)))
             {
                 Debug.Log ("Restore Original SH");
@@ -110,22 +197,116 @@ namespace TIANYUUNITY
 
             EditorGUILayout.BeginHorizontal ();
             GUILayout.Space (10.0f);
-            EditorGUILayout.LabelField ("STORED SH:", titleAStyle, GUILayout.Width (100));
-            bakedGIData = EditorGUILayout.ObjectField (bakedGIData, typeof(TextAsset), false) as TextAsset;
-            EditorGUILayout.EndHorizontal ();
-
-            EditorGUILayout.BeginHorizontal ();
-            GUILayout.Space (10.0f);
             EditorGUILayout.LabelField ("SH WEIGHT:", titleAStyle, GUILayout.Width (100));
             bakedGIWeight = GUILayout.HorizontalSlider (bakedGIWeight, 0.0f, 2.0f, sliderTroughStyle, sliderKnobStyle, GUILayout.Width (180));
 
             EditorGUILayout.EndHorizontal ();
 
+            if (bakedProbeWeight != null)
+            {
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Space(10.0f);
+                EditorGUILayout.LabelField("SH WEIGHT PER PROBE:", titleAStyle, GUILayout.Width(263));
+                if (GUILayout.Button("RESET", buttonBStyle, GUILayout.Width(96), GUILayout.Height(30)))
+                {
+                    for (int i = 0; i < bakedProbeWeight.Length; ++i)
+                    {
+                        bakedProbeWeight[i] = 1.0f;
+                    }
+                    bakedProbeViewIdx = -1;
+                    bakedProbeWeightScrollPos = new Vector2(0.0f, 0.0f);
+                    SceneView.RepaintAll();
+                }
+                EditorGUILayout.EndHorizontal();
+
+                bakedProbeWeightScrollPos = EditorGUILayout.BeginScrollView(bakedProbeWeightScrollPos, GUILayout.Width(372), GUILayout.Height(200));
+                for (int i = 0; i < bakedProbeWeight.Length; ++i)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    GUILayout.Space(10.0f);
+                    if (bakedProbeViewIdx != i)
+                    {
+                        if (GUILayout.Button("PROBE " + i.ToString(), buttonDStyle, GUILayout.Width(65), GUILayout.Height(BAKED_PROBE_WEIGHT_ENTRY_HEIGHT)))
+                        {
+                            bakedProbeViewIdx = i;
+                            Vector3 lightProbeToViewPos = LightmapSettings.lightProbes.positions[bakedProbeViewIdx];
+                            SceneView.lastActiveSceneView.LookAt(lightProbeToViewPos);
+                            SceneView.RepaintAll();
+                        }
+                    }
+                    else
+                    {
+                        if (GUILayout.Button("PROBE " + i.ToString(), buttonEStyle, GUILayout.Width(65), GUILayout.Height(BAKED_PROBE_WEIGHT_ENTRY_HEIGHT)))
+                        {
+                            Vector3 lightProbeToViewPos = LightmapSettings.lightProbes.positions[bakedProbeViewIdx];
+                            SceneView.lastActiveSceneView.LookAt(lightProbeToViewPos);
+                            SceneView.RepaintAll();
+                        }
+                    }
+                    GUILayout.Space(30.0f);
+                    float newSliderValue = GUILayout.HorizontalSlider(bakedProbeWeight[i], 0.0f, 2.0f, sliderTroughStyle, sliderKnobStyle, GUILayout.Width(180));
+                    if (Math.Abs(bakedProbeWeight[i] - newSliderValue) > float.Epsilon)
+                    {
+                        if (bakedProbeViewIdx != i)
+                        {
+                            bakedProbeViewIdx = i;
+                            Vector3 lightProbeToViewPos = LightmapSettings.lightProbes.positions[bakedProbeViewIdx];
+                            SceneView.lastActiveSceneView.LookAt(lightProbeToViewPos);
+                        }
+
+                        bakedProbeWeight[i] = newSliderValue;
+                        SceneView.RepaintAll();
+                    }
+                    EditorGUILayout.EndHorizontal();
+                }
+                EditorGUILayout.EndScrollView();
+
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Space(10.0f);
+                EditorGUILayout.LabelField("SAVE SH WEIGHT:", titleAStyle, GUILayout.Width(100));
+                sHSettingsName = EditorGUILayout.TextField(curSceneName + "_LPW", GUILayout.Width(163), GUILayout.Height(25));
+                if (GUILayout.Button("SAVE", buttonBStyle, GUILayout.Width(96), GUILayout.Height(30)))
+                {
+                    SHWeightSettings sHSettingsAsset = AssetDatabase.LoadAssetAtPath(getSavePath(sHSettingsName, "asset"), typeof(SHWeightSettings)) as SHWeightSettings;
+                    if (sHSettingsAsset == null)
+                    {
+                        SHWeightSettings asset = CreateInstance<SHWeightSettings>();
+                        asset.bakedGIWeight = bakedGIWeight;
+                        asset.bakedProbeWeight = new float[bakedProbeWeight.Length];
+                        Array.Copy(bakedProbeWeight, asset.bakedProbeWeight, bakedProbeWeight.Length);
+                        AssetDatabase.CreateAsset(asset, getSavePath(sHSettingsName, "asset"));
+                    }
+                    else
+                    {
+                        sHSettingsAsset.bakedGIWeight = bakedGIWeight;
+                        sHSettingsAsset.bakedProbeWeight = new float[bakedProbeWeight.Length];
+                        Array.Copy(bakedProbeWeight, sHSettingsAsset.bakedProbeWeight, bakedProbeWeight.Length);
+                    }
+                    AssetDatabase.SaveAssets();
+                    AssetDatabase.Refresh();
+                }
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Space(10.0f);
+                EditorGUILayout.LabelField("STORED SH WEIGHT:", titleAStyle, GUILayout.Width(100));
+                sHWeightSettings = EditorGUILayout.ObjectField(sHWeightSettings, typeof(SHWeightSettings), false, GUILayout.Width(163)) as SHWeightSettings;
+                if (GUILayout.Button("LOAD", buttonBStyle, GUILayout.Width(96), GUILayout.Height(30)))
+                {
+                    bakedGIWeight = sHWeightSettings.bakedGIWeight;
+                    bakedProbeWeight = new float[sHWeightSettings.bakedProbeWeight.Length];
+                    Array.Copy(sHWeightSettings.bakedProbeWeight, bakedProbeWeight, sHWeightSettings.bakedProbeWeight.Length);
+                    bakedProbeViewIdx = -1;
+                    bakedProbeWeightScrollPos = new Vector2(0.0f, 0.0f);
+                    SceneView.RepaintAll();
+                }
+                EditorGUILayout.EndHorizontal();
+            }
 
             //process original sh with multiply GI Weight
             if (GUILayout.Button ("LIGHT PROBES WEIGHT PROCESS", buttonAStyle, GUILayout.Width (379), GUILayout.Height (48)))
             {
-                calculateProbes (bakedGIWeight);
+                calculateProbes (bakedGIWeight, bakedProbeWeight);
             }
 
             if (GUI.changed)
@@ -141,7 +322,7 @@ namespace TIANYUUNITY
             Repaint ();
         }
 
-        void calculateProbes (float bakedGIWeight)
+        void calculateProbes (float bakedGIWeight, float[] bakedGIWeightPerProbe = null)
         {
 
             SphericalHarmonicsL2[] bakedProbes = LightmapSettings.lightProbes.bakedProbes;
@@ -155,7 +336,7 @@ namespace TIANYUUNITY
                 Debug.LogError ("null reference for baked GI data");
                 return;
             }
-            bakedProbes = assignData2bakedProbe (loadProbeDataXml (getXMLPath (bakedGIData)), bakedGIWeight, bakedProbes, probesCount);
+            bakedProbes = assignData2bakedProbe (loadProbeDataXml(AssetDatabase.GetAssetPath(bakedGIData)), bakedGIWeight, bakedGIWeightPerProbe, bakedProbes, probesCount);
             LightmapSettings.lightProbes.bakedProbes = bakedProbes;
         }
 
@@ -229,7 +410,7 @@ namespace TIANYUUNITY
         }
 
         //read data from probeDataXML and assign them to the baked probe
-        public SphericalHarmonicsL2[] assignData2bakedProbe (List<List<float>> tempProbeData, float GIweight, SphericalHarmonicsL2[] bakedProbes, int probeCount)
+        public SphericalHarmonicsL2[] assignData2bakedProbe (List<List<float>> tempProbeData, float GIweight, float[] GIWeightPerProbe, SphericalHarmonicsL2[] bakedProbes, int probeCount)
         {
             for (int i = 0; i < probeCount; i++)
             {
@@ -241,6 +422,21 @@ namespace TIANYUUNITY
                     }
                 }
             }
+
+            if (GIWeightPerProbe != null)
+            {
+                for (int i = 0; i < probeCount; i++)
+                {
+                    for (int j = 0; j < 3; j++)
+                    {
+                        for (int k = 0; k < 9; k++)
+                        {
+                            bakedProbes[i][j, k] *= GIWeightPerProbe[i];
+                        }
+                    }
+                }
+            }
+
             return bakedProbes;
         }
 
@@ -262,11 +458,11 @@ namespace TIANYUUNITY
             //string filepath = Application.dataPath+@"/probeData/test_blue.xml";
         }
 
-        string getSavePath (string GIDataname)
+        string getSavePath (string GIDataname, string ExtensionName)
         {
             string scenePath = EditorApplication.currentScene;
             scenePath = scenePath.Substring (0, scenePath.Length - 6);
-            string savepath = scenePath + @"/" + "/" + GIDataname + ".xml";
+            string savepath = scenePath + @"/" + GIDataname + "." + ExtensionName;
             return savepath;
         }
 
@@ -300,7 +496,7 @@ namespace TIANYUUNITY
 
             //TitleA Style
             titleAStyle.font = (Font)Resources.Load ("Fonts/BitstreamVeraSansMono");
-            titleAStyle.fontSize = 12;
+            titleAStyle.fontSize = 10;
             titleAStyle.normal.textColor = Color.white;
 
             //TitleB Style
@@ -342,6 +538,24 @@ namespace TIANYUUNITY
             buttonCStyle.alignment = TextAnchor.MiddleCenter;
             //buttonBStyle.contentOffset = new Vector2(0f, 2f);
             buttonCStyle.border = new RectOffset (20, 20, 20, 20);
+
+            //Button D Style
+            buttonDStyle.normal.background = (Texture2D)Resources.Load("button_001");
+            buttonDStyle.hover.background = (Texture2D)Resources.Load("button_001_hover");
+            buttonDStyle.font = (Font)Resources.Load("Fonts/BitstreamVeraSansMono");
+            buttonDStyle.fontSize = 10;
+            buttonDStyle.normal.textColor = Color.white;
+            buttonDStyle.alignment = TextAnchor.MiddleCenter;
+            buttonDStyle.border = new RectOffset(20, 20, 20, 20);
+
+            //Button E Style
+            buttonEStyle.normal.background = (Texture2D)Resources.Load("button_001");
+            buttonEStyle.hover.background = (Texture2D)Resources.Load("button_001_hover");
+            buttonEStyle.font = (Font)Resources.Load("Fonts/BitstreamVeraSansMono");
+            buttonEStyle.fontSize = 10;
+            buttonEStyle.normal.textColor = (Color.yellow + Color.red)/2.0f;
+            buttonEStyle.alignment = TextAnchor.MiddleCenter;
+            buttonEStyle.border = new RectOffset(20, 20, 20, 20);
 
             //Slider Trough
             sliderTroughStyle.normal.background = (Texture2D)Resources.Load ("slider_trough_001");
