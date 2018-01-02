@@ -64,7 +64,7 @@ namespace TIANYUUNITY
         static void ShowLightProbeBakedWeightWindow ()
         {
             var lightProbeBakedWindow = EditorWindow.GetWindow<LightProbeBakedWeightTool> ("Probe Window");
-            Vector2 size = new Vector2 (380, 285);
+            Vector2 size = new Vector2 (380, 1280);
             lightProbeBakedWindow.minSize = size;
             lightProbeBakedWindow.maxSize = size;
             lightProbeBakedWindow.Show ();
@@ -105,7 +105,7 @@ namespace TIANYUUNITY
                     ids[i] = GUIUtility.GetControlID(FocusType.Passive);
                 }
 
-                if (Event.current.type == EventType.Repaint || Event.current.type == EventType.layout)
+                if (Event.current.type == EventType.Repaint || Event.current.type == EventType.Layout)
                 {
                     for (int i = 0; i < bakedProbeWeight.Length; ++i)
                     {
@@ -117,7 +117,7 @@ namespace TIANYUUNITY
                         Handles.SphereHandleCap(ids[i], lightProbeToViewPos, Quaternion.identity, 0.15f, Event.current.type);                     
                     }
                 }
-                else if (Event.current.type == EventType.mouseDown && Event.current.button == 0)
+                else if (Event.current.type == EventType.MouseDown && Event.current.button == 0)
                 {
                     for (int i = 0; i < bakedProbeWeight.Length; ++i)
                     {
@@ -219,7 +219,7 @@ namespace TIANYUUNITY
                 }
                 EditorGUILayout.EndHorizontal();
 
-                bakedProbeWeightScrollPos = EditorGUILayout.BeginScrollView(bakedProbeWeightScrollPos, GUILayout.Width(372), GUILayout.Height(200));
+                bakedProbeWeightScrollPos = EditorGUILayout.BeginScrollView(bakedProbeWeightScrollPos, GUILayout.Width(372), GUILayout.Height(910));
                 for (int i = 0; i < bakedProbeWeight.Length; ++i)
                 {
                     EditorGUILayout.BeginHorizontal();
