@@ -25,7 +25,9 @@ namespace TIANYUUNITY
 #region Public Variables
 
         public string GIDataname;
+        public string sHSettingsName;
         public TextAsset bakedGIData;
+        public SHWeightSettings sHWeightSettings;
         public float bakedGIWeight;
         public float[] bakedProbeWeight;
         public string curSceneName;
@@ -152,7 +154,7 @@ namespace TIANYUUNITY
 
             EditorGUILayout.BeginHorizontal ();
             GUILayout.Space (10.0f);
-            EditorGUILayout.LabelField ("Save SH data:", titleAStyle, GUILayout.Width (100));
+            EditorGUILayout.LabelField ("SAVE SH DATA:", titleAStyle, GUILayout.Width (100));
 
             GIDataname = EditorGUILayout.TextField (curSceneName + "_LP", GUILayout.Width (163), GUILayout.Height (25));
 
@@ -165,7 +167,7 @@ namespace TIANYUUNITY
                 }
                 else
                 {
-                    saveProbeDataXml (getSavePath (GIDataname));
+                    saveProbeDataXml (getSavePath (GIDataname, "xml"));
                     AssetDatabase.Refresh ();
 
                     // Initialize baked probe weight data
@@ -180,17 +182,18 @@ namespace TIANYUUNITY
 
 
             EditorGUILayout.EndHorizontal ();
+
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.Space(10.0f);
+            EditorGUILayout.LabelField("STORED SH DATA:", titleAStyle, GUILayout.Width(100));
+            bakedGIData = EditorGUILayout.ObjectField(bakedGIData, typeof(TextAsset), false, GUILayout.Width(163)) as TextAsset;
+            EditorGUILayout.EndHorizontal ();
+
             if (GUILayout.Button ("RESTORE ORIGINAL SH", buttonAStyle, GUILayout.Width (379), GUILayout.Height (48)))
             {
                 Debug.Log ("Restore Original SH");
                 calculateProbes (1.0f);
             }
-
-            EditorGUILayout.BeginHorizontal ();
-            GUILayout.Space (10.0f);
-            EditorGUILayout.LabelField ("STORED SH:", titleAStyle, GUILayout.Width (100));
-            bakedGIData = EditorGUILayout.ObjectField (bakedGIData, typeof(TextAsset), false) as TextAsset;
-            EditorGUILayout.EndHorizontal ();
 
             EditorGUILayout.BeginHorizontal ();
             GUILayout.Space (10.0f);
@@ -257,6 +260,47 @@ namespace TIANYUUNITY
                     EditorGUILayout.EndHorizontal();
                 }
                 EditorGUILayout.EndScrollView();
+
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Space(10.0f);
+                EditorGUILayout.LabelField("SAVE SH WEIGHT:", titleAStyle, GUILayout.Width(100));
+                sHSettingsName = EditorGUILayout.TextField(curSceneName + "_LPW", GUILayout.Width(163), GUILayout.Height(25));
+                if (GUILayout.Button("SAVE", buttonBStyle, GUILayout.Width(96), GUILayout.Height(30)))
+                {
+                    SHWeightSettings sHSettingsAsset = AssetDatabase.LoadAssetAtPath(getSavePath(sHSettingsName, "asset"), typeof(SHWeightSettings)) as SHWeightSettings;
+                    if (sHSettingsAsset == null)
+                    {
+                        SHWeightSettings asset = CreateInstance<SHWeightSettings>();
+                        asset.bakedGIWeight = bakedGIWeight;
+                        asset.bakedProbeWeight = new float[bakedProbeWeight.Length];
+                        Array.Copy(bakedProbeWeight, asset.bakedProbeWeight, bakedProbeWeight.Length);
+                        AssetDatabase.CreateAsset(asset, getSavePath(sHSettingsName, "asset"));
+                    }
+                    else
+                    {
+                        sHSettingsAsset.bakedGIWeight = bakedGIWeight;
+                        sHSettingsAsset.bakedProbeWeight = new float[bakedProbeWeight.Length];
+                        Array.Copy(bakedProbeWeight, sHSettingsAsset.bakedProbeWeight, bakedProbeWeight.Length);
+                    }
+                    AssetDatabase.SaveAssets();
+                    AssetDatabase.Refresh();
+                }
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.BeginHorizontal();
+                GUILayout.Space(10.0f);
+                EditorGUILayout.LabelField("STORED SH WEIGHT:", titleAStyle, GUILayout.Width(100));
+                sHWeightSettings = EditorGUILayout.ObjectField(sHWeightSettings, typeof(SHWeightSettings), false, GUILayout.Width(163)) as SHWeightSettings;
+                if (GUILayout.Button("LOAD", buttonBStyle, GUILayout.Width(96), GUILayout.Height(30)))
+                {
+                    bakedGIWeight = sHWeightSettings.bakedGIWeight;
+                    bakedProbeWeight = new float[sHWeightSettings.bakedProbeWeight.Length];
+                    Array.Copy(sHWeightSettings.bakedProbeWeight, bakedProbeWeight, sHWeightSettings.bakedProbeWeight.Length);
+                    bakedProbeViewIdx = -1;
+                    bakedProbeWeightScrollPos = new Vector2(0.0f, 0.0f);
+                    SceneView.RepaintAll();
+                }
+                EditorGUILayout.EndHorizontal();
             }
 
             //process original sh with multiply GI Weight
@@ -292,7 +336,7 @@ namespace TIANYUUNITY
                 Debug.LogError ("null reference for baked GI data");
                 return;
             }
-            bakedProbes = assignData2bakedProbe (loadProbeDataXml (getXMLPath (bakedGIData)), bakedGIWeight, bakedGIWeightPerProbe, bakedProbes, probesCount);
+            bakedProbes = assignData2bakedProbe (loadProbeDataXml(AssetDatabase.GetAssetPath(bakedGIData)), bakedGIWeight, bakedGIWeightPerProbe, bakedProbes, probesCount);
             LightmapSettings.lightProbes.bakedProbes = bakedProbes;
         }
 
@@ -414,11 +458,11 @@ namespace TIANYUUNITY
             //string filepath = Application.dataPath+@"/probeData/test_blue.xml";
         }
 
-        string getSavePath (string GIDataname)
+        string getSavePath (string GIDataname, string ExtensionName)
         {
             string scenePath = EditorApplication.currentScene;
             scenePath = scenePath.Substring (0, scenePath.Length - 6);
-            string savepath = scenePath + @"/" + "/" + GIDataname + ".xml";
+            string savepath = scenePath + @"/" + GIDataname + "." + ExtensionName;
             return savepath;
         }
 
@@ -452,7 +496,7 @@ namespace TIANYUUNITY
 
             //TitleA Style
             titleAStyle.font = (Font)Resources.Load ("Fonts/BitstreamVeraSansMono");
-            titleAStyle.fontSize = 12;
+            titleAStyle.fontSize = 10;
             titleAStyle.normal.textColor = Color.white;
 
             //TitleB Style
