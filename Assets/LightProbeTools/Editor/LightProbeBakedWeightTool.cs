@@ -16,30 +16,32 @@ namespace TIANYUUNITY {
     class LightProbeBakedWeightTool : EditorWindow {
         #region Public Variables
 
-        public string GIDataname;
-        public string sHSettingsName;
-        public TextAsset bakedGIData;
-        public SHWeightSettings sHWeightSettings;
-        public float bakedGIWeight;
-        public float[] bakedProbeWeight;
-        public string curSceneName;
-        public string headerTile = "LIGHT PROBES WEIGHT TOOL Ver.1.0";
+        private string GIDataname;
+        private string sHSettingsName;
+        private TextAsset bakedGIData;
+        private SHWeightSettings sHWeightSettings;
+        private float bakedGIWeight;
+        private float[] bakedProbeWeight;
+        private string curSceneName;
+        const string headerTile = "LIGHT PROBES WEIGHT TOOL Ver.1.0";
+        const string headerMessage = "Baked lightprobes Spherical Harmonic 27 baked data value have store into the text assets.While editing to light scenes be sure that able to flexable correction to probes values through stored lightprobes sh_27 data with blending of weight data.";
 
         #endregion
 
         #region Private Variables
 
-        GUIStyle headerStyle = new GUIStyle("TL Selection H2");
-        GUIStyle footerStyle = new GUIStyle("GUIEditor.BreadcrumbLeft");
+        readonly GUIStyle headerStyle = new GUIStyle("TL Selection H2");
+        readonly GUIStyle footerStyle = new GUIStyle("GUIEditor.BreadcrumbLeft");
 
         const float BAKED_PROBE_WEIGHT_ENTRY_HEIGHT = 25.0f;
-        public int bakedProbeViewIdx;
+        private int bakedProbeViewIdx;
         Vector2 bakedProbeWeightScrollPos;
 
-        GUILayoutOption probeBtnWidth = GUILayout.Width(100);
-        GUILayoutOption labelWidth = GUILayout.Width(150);
-        GUILayoutOption titleHeight = GUILayout.Height(30);
-        private GUIContent labeCopyright = new GUIContent("COPYRIGHT ALL RIGHT RESERVED JP.LEE / leegoonz@163.com");
+        GUIStyle probeButtonActive;
+        readonly GUILayoutOption probeBtnWidth = GUILayout.Width(100);
+        readonly GUILayoutOption labelWidth = GUILayout.Width(150);
+        readonly GUILayoutOption titleHeight = GUILayout.Height(30);
+        readonly private GUIContent labeCopyright = new GUIContent("COPYRIGHT ALL RIGHT RESERVED JP.LEE / leegoonz@163.com");
         GUILayoutOption copyrightWidth;
         #endregion
 
@@ -108,169 +110,186 @@ namespace TIANYUUNITY {
         }
 
         void OnGUI() {
+            OnGUI_Header();
+            OnGUI_TopMenu();
+
+            if (bakedProbeWeight != null) {
+                OnGUI_Body_Top();
+                OnGUI_Body_ProbeList();
+                OnGUI_Body_Bottom();
+            }
+
+            OnGUI_Footer();
+            Repaint();
+        }
+
+        private void OnGUI_Header() {
             EditorGUILayout.LabelField(headerTile, headerStyle, titleHeight);
-            EditorGUILayout.BeginVertical();
+            EditorGUILayout.HelpBox(headerMessage, MessageType.Info);
+        }
+
+        private void OnGUI_TopMenu() {
+            EditorGUILayout.BeginHorizontal();
             {
-                EditorGUILayout.HelpBox("Baked lightprobes Spherical Harmonic 27 baked data value have store into the text assets.While editing to light scenes be sure that able to flexable correction to probes values through stored lightprobes sh_27 data with blending of weight data.", MessageType.Info);
+                GUILayout.Space(10.0f);
+                EditorGUILayout.LabelField("SAVE SH DATA:", labelWidth);
 
-                EditorGUILayout.BeginHorizontal();
-                {
-                    GUILayout.Space(10.0f);
-                    EditorGUILayout.LabelField("SAVE SH DATA:", labelWidth);
+                GIDataname = EditorGUILayout.TextField(curSceneName + "_LP");
 
-                    GIDataname = EditorGUILayout.TextField(curSceneName + "_LP");
+                if (GUILayout.Button("SAVE")) {
+                    Debug.Log("Pressed SaveProbeData to XML btn");
+                    if (GIDataname == string.Empty) {
+                        Debug.LogWarning("There is no baked GI name defined, add name to save");
+                    } else {
+                        saveProbeDataXml(getSavePath(GIDataname, "xml"));
+                        AssetDatabase.Refresh();
 
-                    if (GUILayout.Button("SAVE")) {
-                        Debug.Log("Pressed SaveProbeData to XML btn");
-                        if (GIDataname == string.Empty) {
-                            Debug.LogWarning("There is no baked GI name defined, add name to save");
+                        // Initialize baked probe weight data
+                        {
+                            Array.Resize(ref bakedProbeWeight, LightmapSettings.lightProbes.count);
+                            bakedProbeViewIdx = -1;
+                            bakedProbeWeightScrollPos = new Vector2(0.0f, 0.0f);
+                            SceneView.RepaintAll();
+                        }
+                    }
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            {
+                GUILayout.Space(10.0f);
+                EditorGUILayout.LabelField("STORED SH DATA:", labelWidth);
+                bakedGIData = EditorGUILayout.ObjectField(bakedGIData, typeof(TextAsset), false) as TextAsset;
+            }
+            EditorGUILayout.EndHorizontal();
+
+            if (GUILayout.Button("RESTORE ORIGINAL SH", GUILayout.Height(48))) {
+                Debug.Log("Restore Original SH");
+                calculateProbes(1.0f);
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            {
+                GUILayout.Space(10.0f);
+                EditorGUILayout.LabelField("SH WEIGHT:", labelWidth);
+                bakedGIWeight = GUILayout.HorizontalSlider(bakedGIWeight, 0.0f, 2.0f);
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void OnGUI_Body_Top() {
+            EditorGUILayout.BeginHorizontal();
+            {
+                GUILayout.Space(10.0f);
+                EditorGUILayout.LabelField("SH WEIGHT PER PROBE:", labelWidth);
+                if (GUILayout.Button("RESET")) {
+                    for (int i = 0; i < bakedProbeWeight.Length; ++i) {
+                        bakedProbeWeight[i] = 1.0f;
+                    }
+                    bakedProbeViewIdx = -1;
+                    bakedProbeWeightScrollPos = new Vector2(0.0f, 0.0f);
+                    SceneView.RepaintAll();
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void OnGUI_Body_ProbeList() {
+            bakedProbeWeightScrollPos = EditorGUILayout.BeginScrollView(bakedProbeWeightScrollPos);
+            {
+                for (int i = 0; i < bakedProbeWeight.Length; ++i) {
+                    EditorGUILayout.BeginHorizontal();
+                    {
+                        GUILayout.Space(10.0f);
+                        if (bakedProbeViewIdx != i) {
+                            if (GUILayout.Button("PROBE " + i.ToString(), probeBtnWidth, GUILayout.Height(BAKED_PROBE_WEIGHT_ENTRY_HEIGHT))) {
+                                bakedProbeViewIdx = i;
+                                Vector3 lightProbeToViewPos = LightmapSettings.lightProbes.positions[bakedProbeViewIdx];
+                                SceneView.lastActiveSceneView.LookAt(lightProbeToViewPos);
+                                SceneView.RepaintAll();
+                            }
                         } else {
-                            saveProbeDataXml(getSavePath(GIDataname, "xml"));
-                            AssetDatabase.Refresh();
-
-                            // Initialize baked probe weight data
-                            {
-                                Array.Resize(ref bakedProbeWeight, LightmapSettings.lightProbes.count);
-                                bakedProbeViewIdx = -1;
-                                bakedProbeWeightScrollPos = new Vector2(0.0f, 0.0f);
+                            if (GUILayout.Button("PROBE " + i.ToString(), probeButtonActive, probeBtnWidth, GUILayout.Height(BAKED_PROBE_WEIGHT_ENTRY_HEIGHT))) {
+                                Vector3 lightProbeToViewPos = LightmapSettings.lightProbes.positions[bakedProbeViewIdx];
+                                SceneView.lastActiveSceneView.LookAt(lightProbeToViewPos);
                                 SceneView.RepaintAll();
                             }
                         }
-                    }
-                }
-                EditorGUILayout.EndHorizontal();
-
-                EditorGUILayout.BeginHorizontal();
-                {
-                    GUILayout.Space(10.0f);
-                    EditorGUILayout.LabelField("STORED SH DATA:", labelWidth);
-                    bakedGIData = EditorGUILayout.ObjectField(bakedGIData, typeof(TextAsset), false) as TextAsset;
-                }
-                EditorGUILayout.EndHorizontal();
-
-                if (GUILayout.Button("RESTORE ORIGINAL SH", GUILayout.Height(48))) {
-                    Debug.Log("Restore Original SH");
-                    calculateProbes(1.0f);
-                }
-
-                EditorGUILayout.BeginHorizontal();
-                {
-                    GUILayout.Space(10.0f);
-                    EditorGUILayout.LabelField("SH WEIGHT:", labelWidth);
-                    bakedGIWeight = GUILayout.HorizontalSlider(bakedGIWeight, 0.0f, 2.0f);
-                }
-                EditorGUILayout.EndHorizontal();
-
-                if (bakedProbeWeight != null) {
-                    EditorGUILayout.BeginHorizontal();
-                    {
-                        GUILayout.Space(10.0f);
-                        EditorGUILayout.LabelField("SH WEIGHT PER PROBE:", labelWidth);
-                        if (GUILayout.Button("RESET")) {
-                            for (int i = 0; i < bakedProbeWeight.Length; ++i) {
-                                bakedProbeWeight[i] = 1.0f;
+                        GUILayout.Space(30.0f);
+                        float newSliderValue = GUILayout.HorizontalSlider(bakedProbeWeight[i], 0.0f, 2.0f);
+                        if (Math.Abs(bakedProbeWeight[i] - newSliderValue) > float.Epsilon) {
+                            if (bakedProbeViewIdx != i) {
+                                bakedProbeViewIdx = i;
+                                Vector3 lightProbeToViewPos = LightmapSettings.lightProbes.positions[bakedProbeViewIdx];
+                                SceneView.lastActiveSceneView.LookAt(lightProbeToViewPos);
                             }
-                            bakedProbeViewIdx = -1;
-                            bakedProbeWeightScrollPos = new Vector2(0.0f, 0.0f);
-                            SceneView.RepaintAll();
-                        }
-                    }
-                    EditorGUILayout.EndHorizontal();
 
-                    bakedProbeWeightScrollPos = EditorGUILayout.BeginScrollView(bakedProbeWeightScrollPos);
-                    {
-                        for (int i = 0; i < bakedProbeWeight.Length; ++i) {
-                            EditorGUILayout.BeginHorizontal();
-                            {
-                                GUILayout.Space(10.0f);
-                                if (bakedProbeViewIdx != i) {
-                                    if (GUILayout.Button("PROBE " + i.ToString(), probeBtnWidth, GUILayout.Height(BAKED_PROBE_WEIGHT_ENTRY_HEIGHT))) {
-                                        bakedProbeViewIdx = i;
-                                        Vector3 lightProbeToViewPos = LightmapSettings.lightProbes.positions[bakedProbeViewIdx];
-                                        SceneView.lastActiveSceneView.LookAt(lightProbeToViewPos);
-                                        SceneView.RepaintAll();
-                                    }
-                                } else {
-                                    if (GUILayout.Button("PROBE " + i.ToString(), probeBtnWidth, GUILayout.Height(BAKED_PROBE_WEIGHT_ENTRY_HEIGHT))) {
-                                        Vector3 lightProbeToViewPos = LightmapSettings.lightProbes.positions[bakedProbeViewIdx];
-                                        SceneView.lastActiveSceneView.LookAt(lightProbeToViewPos);
-                                        SceneView.RepaintAll();
-                                    }
-                                }
-                                GUILayout.Space(30.0f);
-                                float newSliderValue = GUILayout.HorizontalSlider(bakedProbeWeight[i], 0.0f, 2.0f);
-                                if (Math.Abs(bakedProbeWeight[i] - newSliderValue) > float.Epsilon) {
-                                    if (bakedProbeViewIdx != i) {
-                                        bakedProbeViewIdx = i;
-                                        Vector3 lightProbeToViewPos = LightmapSettings.lightProbes.positions[bakedProbeViewIdx];
-                                        SceneView.lastActiveSceneView.LookAt(lightProbeToViewPos);
-                                    }
-
-                                    bakedProbeWeight[i] = newSliderValue;
-                                    SceneView.RepaintAll();
-                                }
-                            }
-                            EditorGUILayout.EndHorizontal();
-                        }
-                    }
-                    EditorGUILayout.EndScrollView();
-
-                    EditorGUILayout.BeginHorizontal();
-                    {
-                        GUILayout.Space(10.0f);
-                        EditorGUILayout.LabelField("SAVE SH WEIGHT:", labelWidth);
-                        sHSettingsName = EditorGUILayout.TextField(curSceneName + "_LPW", GUILayout.Width(163));
-                        if (GUILayout.Button("SAVE")) {
-                            SHWeightSettings sHSettingsAsset = AssetDatabase.LoadAssetAtPath(getSavePath(sHSettingsName, "asset"), typeof(SHWeightSettings)) as SHWeightSettings;
-                            if (sHSettingsAsset == null) {
-                                SHWeightSettings asset = CreateInstance<SHWeightSettings>();
-                                asset.bakedGIWeight = bakedGIWeight;
-                                asset.bakedProbeWeight = new float[bakedProbeWeight.Length];
-                                Array.Copy(bakedProbeWeight, asset.bakedProbeWeight, bakedProbeWeight.Length);
-                                AssetDatabase.CreateAsset(asset, getSavePath(sHSettingsName, "asset"));
-                            } else {
-                                sHSettingsAsset.bakedGIWeight = bakedGIWeight;
-                                sHSettingsAsset.bakedProbeWeight = new float[bakedProbeWeight.Length];
-                                Array.Copy(bakedProbeWeight, sHSettingsAsset.bakedProbeWeight, bakedProbeWeight.Length);
-                            }
-                            AssetDatabase.SaveAssets();
-                            AssetDatabase.Refresh();
-                        }
-                    }
-                    EditorGUILayout.EndHorizontal();
-
-                    EditorGUILayout.BeginHorizontal();
-                    {
-                        GUILayout.Space(10.0f);
-                        EditorGUILayout.LabelField("STORED SH WEIGHT:", labelWidth);
-                        sHWeightSettings = EditorGUILayout.ObjectField(sHWeightSettings, typeof(SHWeightSettings), false, GUILayout.Width(163)) as SHWeightSettings;
-                        if (GUILayout.Button("LOAD")) {
-                            bakedGIWeight = sHWeightSettings.bakedGIWeight;
-                            bakedProbeWeight = new float[sHWeightSettings.bakedProbeWeight.Length];
-                            Array.Copy(sHWeightSettings.bakedProbeWeight, bakedProbeWeight, sHWeightSettings.bakedProbeWeight.Length);
-                            bakedProbeViewIdx = -1;
-                            bakedProbeWeightScrollPos = new Vector2(0.0f, 0.0f);
+                            bakedProbeWeight[i] = newSliderValue;
                             SceneView.RepaintAll();
                         }
                     }
                     EditorGUILayout.EndHorizontal();
                 }
-
-                //process original sh with multiply GI Weight
-                if (GUILayout.Button("LIGHT PROBES WEIGHT PROCESS", GUILayout.Height(48))) {
-                    calculateProbes(bakedGIWeight, bakedProbeWeight);
-                }
-
-                if (GUI.changed) {
-                    EditorUtility.SetDirty(this);
-                }
-
-                //Draw Footer Image
-
-                EditorGUILayout.LabelField(labeCopyright, footerStyle, copyrightWidth);
             }
-            EditorGUILayout.EndVertical();
-            Repaint();
+            EditorGUILayout.EndScrollView();
+        }
+
+        private void OnGUI_Body_Bottom() {
+            EditorGUILayout.BeginHorizontal();
+            {
+                GUILayout.Space(10.0f);
+                EditorGUILayout.LabelField("SAVE SH WEIGHT:", labelWidth);
+                sHSettingsName = EditorGUILayout.TextField(curSceneName + "_LPW", GUILayout.Width(163));
+                if (GUILayout.Button("SAVE")) {
+                    SHWeightSettings sHSettingsAsset = AssetDatabase.LoadAssetAtPath(getSavePath(sHSettingsName, "asset"), typeof(SHWeightSettings)) as SHWeightSettings;
+                    if (sHSettingsAsset == null) {
+                        SHWeightSettings asset = CreateInstance<SHWeightSettings>();
+                        asset.bakedGIWeight = bakedGIWeight;
+                        asset.bakedProbeWeight = new float[bakedProbeWeight.Length];
+                        Array.Copy(bakedProbeWeight, asset.bakedProbeWeight, bakedProbeWeight.Length);
+                        AssetDatabase.CreateAsset(asset, getSavePath(sHSettingsName, "asset"));
+                    } else {
+                        sHSettingsAsset.bakedGIWeight = bakedGIWeight;
+                        sHSettingsAsset.bakedProbeWeight = new float[bakedProbeWeight.Length];
+                        Array.Copy(bakedProbeWeight, sHSettingsAsset.bakedProbeWeight, bakedProbeWeight.Length);
+                    }
+                    AssetDatabase.SaveAssets();
+                    AssetDatabase.Refresh();
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            {
+                GUILayout.Space(10.0f);
+                EditorGUILayout.LabelField("STORED SH WEIGHT:", labelWidth);
+                sHWeightSettings = EditorGUILayout.ObjectField(sHWeightSettings, typeof(SHWeightSettings), false, GUILayout.Width(163)) as SHWeightSettings;
+                if (GUILayout.Button("LOAD")) {
+                    bakedGIWeight = sHWeightSettings.bakedGIWeight;
+                    bakedProbeWeight = new float[sHWeightSettings.bakedProbeWeight.Length];
+                    Array.Copy(sHWeightSettings.bakedProbeWeight, bakedProbeWeight, sHWeightSettings.bakedProbeWeight.Length);
+                    bakedProbeViewIdx = -1;
+                    bakedProbeWeightScrollPos = new Vector2(0.0f, 0.0f);
+                    SceneView.RepaintAll();
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void OnGUI_Footer() {
+            //process original sh with multiply GI Weight
+            if (GUILayout.Button("LIGHT PROBES WEIGHT PROCESS", GUILayout.Height(48))) {
+                calculateProbes(bakedGIWeight, bakedProbeWeight);
+            }
+
+            if (GUI.changed) {
+                EditorUtility.SetDirty(this);
+            }
+
+            //Draw Footer Image
+
+            EditorGUILayout.LabelField(labeCopyright, footerStyle, copyrightWidth);
         }
 
         void calculateProbes(float bakedGIWeight, float[] bakedGIWeightPerProbe = null) {
@@ -392,6 +411,9 @@ namespace TIANYUUNITY {
 
         void GenerateStyles() {
             copyrightWidth = GUILayout.Width(footerStyle.CalcSize(labeCopyright).x);
+
+            probeButtonActive = new GUIStyle("button");
+            probeButtonActive.normal = probeButtonActive.onActive;
         }
     }
 }
