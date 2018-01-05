@@ -30,7 +30,7 @@ namespace TIANYUUNITY {
 
         #region Private Variables
 
-        readonly GUIStyle headerStyle = new GUIStyle("TL Selection H2");
+        readonly GUIStyle headerStyle = new GUIStyle("LODLevelNotifyText");// new GUIStyle("TL Selection H2");
         readonly GUIStyle footerStyle = new GUIStyle("GUIEditor.BreadcrumbLeft");
 
         const float BAKED_PROBE_WEIGHT_ENTRY_HEIGHT = 25.0f;
@@ -49,7 +49,7 @@ namespace TIANYUUNITY {
         //& is alt , % is ctrl , # is shift
         static void ShowLightProbeBakedWeightWindow() {
             var lightProbeBakedWindow = EditorWindow.GetWindow<LightProbeBakedWeightTool>("Probe Window");
-            lightProbeBakedWindow.minSize = Vector2.one * 400;
+            lightProbeBakedWindow.minSize = Vector2.one * 460;
             lightProbeBakedWindow.Show();
         }
 
