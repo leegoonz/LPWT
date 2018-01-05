@@ -20,7 +20,7 @@ namespace TIANYUUNITY {
         private string sHSettingsName;
         private TextAsset bakedGIData;
         private SHWeightSettings sHWeightSettings;
-        private float bakedGIWeight;
+        private float bakedGIWeight = 1;
         private float[] bakedProbeWeight;
         private string curSceneName;
         const string headerTile = "LIGHT PROBES WEIGHT TOOL Ver.1.0";
@@ -39,6 +39,7 @@ namespace TIANYUUNITY {
 
         GUIStyle probeButtonActive;
         readonly GUILayoutOption probeBtnWidth = GUILayout.Width(100);
+        readonly GUILayoutOption weightWidth = GUILayout.Width(130);
         readonly GUILayoutOption labelWidth = GUILayout.Width(150);
         readonly GUILayoutOption titleHeight = GUILayout.Height(30);
         readonly private GUIContent labeCopyright = new GUIContent("COPYRIGHT ALL RIGHT RESERVED JP.LEE / leegoonz@163.com");
@@ -172,8 +173,9 @@ namespace TIANYUUNITY {
             EditorGUILayout.BeginHorizontal();
             {
                 GUILayout.Space(10.0f);
-                EditorGUILayout.LabelField("SH WEIGHT:", labelWidth);
+                EditorGUILayout.LabelField("SH WEIGHT:", weightWidth);
                 bakedGIWeight = GUILayout.HorizontalSlider(bakedGIWeight, 0.0f, 2.0f);
+                GUILayout.Box("", GUIStyle.none, GUILayout.Width(16));
             }
             EditorGUILayout.EndHorizontal();
         }
@@ -191,6 +193,7 @@ namespace TIANYUUNITY {
                     bakedProbeWeightScrollPos = new Vector2(0.0f, 0.0f);
                     SceneView.RepaintAll();
                 }
+                GUILayout.Box("", GUIStyle.none, GUILayout.Width(16));
             }
             EditorGUILayout.EndHorizontal();
         }
