@@ -5,8 +5,8 @@
 //contact via leegoon73@gmail.com (EN) / leegoonz@163.com(CN)
 //http://www.leegoonz.blog
 
-### 版本一已经完成 光照贴图设置好，再确认一下探针数据有时你会发现可能要比想象中的弱或者强，使用该功能，Artists可以直观地修改好以后，再回到SphericalHarmonicsL2探针数据。 
-### 不用再烘培，就能回到原始数据。 用设定好的权重值，向探针数据乘以加权值。 下一个扩展版本是，把在probe cout list中，选择好的probe，接收到列表中，添加仅仅实时仿造他们的函数。
+### Version 1 has been completed Light mapping is set up, then confirm the probe data Sometimes you may find that it may be weaker or stronger than you thought, using this function, Artists can visually modify it and then go back to the SphericalHarmonicsL2 probe data later. 
+### No more baking to get back to the original data. Multiply the weighting values to the probe data with the set weighting values. The next extended version is to take the selected probes in the probe cout list, receive them into the list and add functions that just imitate them in real time.
 
 ### Youtube is here.
 [![LIGHT PROBE EDITOR](https://i.imgur.com/MtArUFV.png)](https://youtu.be/OoEMVSMuaKE "LIGHT PROBE EDITOR")
